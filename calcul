@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Master Lab High</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 600px;
+  margin: auto;
+  padding: 20px;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+h1 {
+  text-align: center;
+}
+label {
+  display: block;
+  margin-top: 12px;
+}
+input, select, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+  border-radius: 8px;
+  border: none;
+}
+button {
+  margin-top: 20px;
+  background: #22c55e;
+  font-weight: bold;
+  cursor: pointer;
+}
+.box {
+  background: #020617;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+small {
+  opacity: 0.7;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🌿 Master Lab High</h1>
+
+<form id="calculatorForm">
+
+<label>Type de matière</label>
+<select id="matType">
+  <option value="18" data-thc="18">Fleur 18%</option>
+  <option value="25" data-thc="25">Fleur 25%</option>
+  <option value="80" data-thc="80">Wax 80%</option>
+</select>
+
+<label>THC (%)</label>
+<input id="thcVal" type="number" value="18">
+
+<label>Quantité de solvant (ml)</label>
+<input id="liquidQty" type="number" value="250">
+
+<label>Type de solvant</label>
+<select id="fatSelect">
+  <option value="huile">Huile</option>
+  <option value="lait">Lait</option>
+  <option value="creme">Crème</option>
+  <option value="sirop">Sirop</option>
+  <option value="miel">Miel</option>
+</select>
+
+<label>Mg de THC par portion</label>
+<input id="targetMg" type="number" value="10">
+
+<label>Nombre de portions</label>
+<input id="nbParts" type="number" value="25">
+
+</form>
+
+<div id="syrupBox" class="box" style="display:none;">
+  <strong>Préparation du sirop</strong>
+  <p id="syrupText"></p>
+</div>
+
+<div class="box">
+  <strong>Infusion</strong>
+  <p id="infusionText"></p>
+</div>
+
+<div class="box">
+  <strong>Conservation</strong>
+  <p id="storageText"></p>
+  <p id="storageTime"></p>
+</div>
+
+<button onclick="MasterLabHigh.reset()">🔄 Réinitialiser</button>
+
+<small>
+⚠️ Usage éducatif uniquement. Respectez les lois en vigueur.
+</small>
+
+<script>
+// ===== UTILITAIRES =====
+function $(id) { return document.getElementById(id); }
+
+function escapeHTML(str) {
+  return str.replace(/[&<>"']/g, m => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[m]);
+}
+
+function debounce(fn, delay) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
+
+// ===== CONFIG =====
+const CONFIG = {
+  YIELD_FACTORS: {
+    huile: { time: "2h" },
+    lait: { time: "45 min" },
+    creme: { time: "45 min" },
+    sirop: { time: "30 min" },
+    miel: { time: "30 min" }
+  },
+  STORAGE_RULES: {
+    dairy: { fridge: "3–5 jours", freezer: "1 mois" },
+    honey: { fridge: "2 mois", freezer: "6 mois" },
+    default: { fridge: "1 mois", freezer: "6 mois" }
+  }
+};
+
+// ===== CALCUL PRINCIPAL =====
+function calculateDosage() {
+  const thc = Number($('thcVal').value);
+  const qty = Number($('liquidQty').value);
+  const parts = Number($('nbParts').value);
+  const target = Number($('targetMg').value);
+  const fat = $('fatSelect').value;
+  const mat = $('matType').value;
+
+  if (!thc || !qty || !parts || !target) return;
+
+  const totalMg = parts * target;
+  const finalGrams = (totalMg / (thc * 10)).toFixed(2);
+  const solventName = fat.charAt(0).toUpperCase() + fat.slice(1);
+
+  // Sirop
+  const syrupBox = $('syrupBox');
+  if (fat === "sirop") {
+    syrupBox.style.display = "block";
+    const sugar = (qty / 1.5).toFixed(0);
+    const water = (qty / 3).toFixed(0);
+    $('syrupText').innerHTML =
+      `Pour ${qty}ml : Chauffer <b>${sugar}g de sucre</b> dans <b>${water}ml d'eau</b>. Ajouter 1 c. à thé de lécithine.`;
+  } else {
+    syrupBox.style.display = "none";
+  }
+
+  $('infusionText').textContent =
+    generateInfusionText(finalGrams, mat, solventName, qty);
+
+  updateStorageInfo(solventName, mat);
+}
+
+// ===== INFUSION =====
+function generateInfusionText(grams, materialType, solventName, quantity) {
+  if (solventName === "Sirop") {
+    return `Incorporer ${grams}g activés dans le sirop chaud à 75°C pendant 30 min.`;
+  }
+  if (materialType === "80") {
+    return `Dissoudre ${grams}g de wax activée dans ${quantity}g de ${solventName} à 75°C pendant 20 min.`;
+  }
+  const time = CONFIG.YIELD_FACTORS[$('fatSelect').value]?.time || "2h";
+  return `Infuser ${grams}g activés dans ${quantity}ml de ${solventName} à 80°C pendant ${time}.`;
+}
+
+// ===== CONSERVATION =====
+function updateStorageInfo(solventName, materialType) {
+  const dairy = solventName === "Lait" || solventName === "Crème";
+  const honey = solventName === "Miel" || solventName === "Sirop";
+
+  $('storageText').textContent =
+    materialType === "80"
+      ? "Filtration souvent inutile pour les concentrés."
+      : "Filtrer avec étamine ou filtre à café.";
+
+  const rules = dairy
+    ? CONFIG.STORAGE_RULES.dairy
+    : honey
+    ? CONFIG.STORAGE_RULES.honey
+    : CONFIG.STORAGE_RULES.default;
+
+  $('storageTime').innerHTML =
+    `❄️ Frigo : ${rules.fridge}<br>🧊 Congélateur : ${rules.freezer}`;
+}
+
+// ===== SYNCHRO =====
+function syncMaterialAndTHC() {
+  const opt = $('matType').selectedOptions[0];
+  $('thcVal').value = opt.dataset.thc;
+  calculateDosage();
+}
+
+// ===== RESET =====
+function resetForm() {
+  $('calculatorForm').reset();
+  syncMaterialAndTHC();
+}
+
+// ===== EVENTS =====
+document.addEventListener('DOMContentLoaded', () => {
+  const d = debounce(calculateDosage, 300);
+  $('matType').addEventListener('change', syncMaterialAndTHC);
+  $('thcVal').addEventListener('input', d);
+  $('fatSelect').addEventListener('change', calculateDosage);
+  $('liquidQty').addEventListener('input', d);
+  $('targetMg').addEventListener('input', d);
+  $('nbParts').addEventListener('input', d);
+  calculateDosage();
+});
+
+// ===== EXPORT =====
+window.MasterLabHigh = {
+  calculate: calculateDosage,
+  reset: resetForm,
+  version: "2.1"
+};
+</script>
+
+</body>
+</html>
